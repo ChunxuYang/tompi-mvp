@@ -1,5 +1,6 @@
 "use client";
 
+import { useCompletion } from "ai/react";
 import { useEffect, useRef } from "react";
 import { useDebouncedCallback } from "use-debounce";
 
@@ -8,10 +9,8 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { EditorContent, JSONContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 
-import { Button } from "../ui/button";
-import { Card, CardContent } from "../ui/card";
+import { Card } from "../ui/card";
 import AiAssistanceNode from "./extensions/ai-assistance";
-import { useAiCompletion } from "./extensions/ai-completion";
 
 import type { Editor } from "@tiptap/core";
 export default function TiptapEditor() {
@@ -21,6 +20,8 @@ export default function TiptapEditor() {
   });
 
   const hydrated = useRef(false);
+
+  const { complete } = useCompletion();
 
   const debouncedUpdate = useDebouncedCallback(async (editor: Editor) => {
     const json = editor.getJSON();
@@ -49,11 +50,13 @@ export default function TiptapEditor() {
         emptyEditorClass: "empty-editor",
       }),
 
-      AiAssistanceNode,
+      AiAssistanceNode.configure({
+        complete: async (text: string) => {
+          return complete(text) as Promise<string>;
+        },
+      }),
     ],
   });
-
-  const { triggerCompletion } = useAiCompletion(editor);
 
   useEffect(() => {
     if (!editor || hydrated.current) return;
@@ -74,7 +77,7 @@ export default function TiptapEditor() {
         editor?.chain().focus().run();
       }}
     >
-      <Card className="fixed bottom-0 right-0 m-10 z-10">
+      {/* <Card className="fixed bottom-0 right-0 m-10 z-10">
         <CardContent className="p-4">
           <Button
             onClick={() => {
@@ -85,7 +88,7 @@ export default function TiptapEditor() {
             Complete
           </Button>
         </CardContent>
-      </Card>
+      </Card> */}
 
       <EditorContent editor={editor} />
     </Card>

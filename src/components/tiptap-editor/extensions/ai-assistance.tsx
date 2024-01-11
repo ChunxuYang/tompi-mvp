@@ -1,35 +1,46 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { memo } from "react";
 
+import AICompletion from "@/components/ai-completion";
+import ChatDialog from "@/components/chat-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Textarea } from "@/components/ui/textarea";
+import { getPrevText } from "@/lib/editor";
+import { ChatBubbleIcon, MagicWandIcon } from "@radix-ui/react-icons";
+import { mergeAttributes } from "@tiptap/core";
 import {
-  ChatBubbleIcon,
-  CursorTextIcon,
-  PaperPlaneIcon,
-} from "@radix-ui/react-icons";
-import { mergeAttributes, Node } from "@tiptap/core";
-import { Editor, NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
-
-import { useAiCompletion } from "./ai-completion";
+  Editor,
+  Node,
+  NodeViewWrapper,
+  ReactNodeViewRenderer,
+} from "@tiptap/react";
 
 interface AIAssistanceComponentProps {
   editor: Editor;
-  node: Node;
+  node: any;
   deleteNode: () => void;
   getPos: () => any;
 }
 
-const AIAssistanceComponent = (props: AIAssistanceComponentProps) => {
-  const { editor, deleteNode, getPos } = props;
-  const { triggerCompletion } = useAiCompletion(editor);
-  const [prompt, setPrompt] = useState("");
+type ChatNodeAttrs = {
+  type: "chat";
+};
+
+type CompleteNodeAttrs = {
+  type: "complete";
+  completionText: string;
+};
+
+type AIAssistanceNodeAttrs = ChatNodeAttrs | CompleteNodeAttrs;
+
+const AIAssistanceComponent = memo((props: AIAssistanceComponentProps) => {
+  const { editor, getPos, node, deleteNode } = props;
+  const { type } = node.attrs as AIAssistanceNodeAttrs;
   return (
     <NodeViewWrapper className="inline group">
       <div className="inline w-12 text-sm outline outline-orange-400 text-muted-foreground invisible group-hover:visible"></div>
@@ -37,7 +48,6 @@ const AIAssistanceComponent = (props: AIAssistanceComponentProps) => {
         <DropdownMenu
           onOpenChange={(open) => {
             if (open) {
-              console.log("clicked");
               editor.commands.setTextSelection({
                 from: getPos(),
                 to: getPos(),
@@ -47,60 +57,64 @@ const AIAssistanceComponent = (props: AIAssistanceComponentProps) => {
         >
           <DropdownMenuTrigger asChild>
             <Button size={"icon"} className="rounded-full">
-              <ChatBubbleIcon />
+              {
+                {
+                  chat: <ChatBubbleIcon />,
+                  complete: <MagicWandIcon />,
+                }[type]
+              }
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             side="right"
-            className="p-3 space-y-2"
+            className={"rounded-xl p-0"}
             sideOffset={15}
             align="start"
           >
-            <div className="w-full relative border rounded-xl">
-              <Textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                autoResize
-                rows={1}
-                className="w-80 resize-none border-0 bg-transparent py-[10px] pr-10 focus:ring-0 focus-visible:ring-0"
-                placeholder="Enter a prompt for AI assistance..."
-              ></Textarea>
-              <Button
-                className="absolute bottom-1 right-1 rounded-lg w-8 h-8"
-                size={"icon"}
-                disabled={prompt.length === 0}
-                onClick={() => {
-                  deleteNode();
-                  triggerCompletion();
-                }}
-              >
-                <PaperPlaneIcon />
-              </Button>
-            </div>
-            <div className="w-full flex">
-              <Button
-                variant="outline"
-                size={"sm"}
-                onClick={() => {
-                  deleteNode();
-                }}
-              >
-                Dismiss
-              </Button>
-            </div>
+            {
+              {
+                chat: <ChatDialog essay={editor.getText()} />,
+                complete: (
+                  <AICompletion
+                    currentText={getPrevText(editor)}
+                    completionText={node.attrs.completionText || ""}
+                    onAccept={(completion: string) => {
+                      editor.commands.insertContentAt(getPos(), completion);
+                      deleteNode();
+                    }}
+                    onDismiss={() => {
+                      deleteNode();
+                    }}
+                  />
+                ),
+              }[type]
+            }
+            {/* <ChatDialog essay={editor.getText()} /> */}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
     </NodeViewWrapper>
   );
-};
+});
 
-const AiAssistanceNode = Node.create({
+interface AIAssistanceNodeOptions {
+  complete: (text: string) => Promise<string>;
+}
+
+const AiAssistanceNode = Node.create<AIAssistanceNodeOptions, {}>({
   name: "aiAssistance",
   group: "inline",
   content: "inline*",
   inline: true,
   atom: true,
+
+  // addOptions() {
+  //   return {
+  //     complete: (text: string) => {
+  //       return Promise.resolve("text");
+  //     }
+  //   }
+  // },
 
   parseHTML() {
     return [
@@ -118,16 +132,47 @@ const AiAssistanceNode = Node.create({
     return ReactNodeViewRenderer(AIAssistanceComponent);
   },
 
+  addAttributes() {
+    return {
+      type: {
+        default: "chat",
+      },
+      completionText: {
+        default: "",
+      },
+    };
+  },
+
   addKeyboardShortcuts() {
     return {
-      "Mod-Enter": () => {
+      "Mod-Shift-Enter": () => {
         return this.editor
           .chain()
           .insertContentAt(this.editor.state.selection.head, {
             type: this.type.name,
+            attrs: {
+              type: "chat",
+            },
           })
           .focus()
           .run();
+      },
+      "Mod-Enter": () => {
+        this.options.complete(getPrevText(this.editor)).then((text) => {
+          return this.editor
+            .chain()
+            .insertContentAt(this.editor.state.selection.head, {
+              type: this.type.name,
+              attrs: { completionText: text, type: "complete" },
+              //   type: "complete",
+              //   completionText: text,
+              // },
+            })
+            .focus()
+            .run();
+        });
+
+        return true;
       },
     };
   },
