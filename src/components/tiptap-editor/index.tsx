@@ -1,10 +1,8 @@
 "use client";
 
-import { useCompletion } from "ai/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useDebouncedCallback } from "use-debounce";
 
-import { getPrevText } from "@/lib/editor";
 import { useLocalStorage } from "@mantine/hooks";
 import Placeholder from "@tiptap/extension-placeholder";
 import { EditorContent, JSONContent, useEditor } from "@tiptap/react";
@@ -12,6 +10,8 @@ import StarterKit from "@tiptap/starter-kit";
 
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
+import AiAssistanceNode from "./extensions/ai-assistance";
+import { useAiCompletion } from "./extensions/ai-completion";
 
 import type { Editor } from "@tiptap/core";
 export default function TiptapEditor() {
@@ -48,37 +48,22 @@ export default function TiptapEditor() {
         placeholder: "Start writing your essay here...",
         emptyEditorClass: "empty-editor",
       }),
+
+      AiAssistanceNode,
     ],
   });
+
+  const { triggerCompletion } = useAiCompletion(editor);
 
   useEffect(() => {
     if (!editor || hydrated.current) return;
     if (content) {
-      editor.commands.setContent(content);
-      hydrated.current = true;
+      setTimeout(() => {
+        editor.commands.setContent(content);
+        hydrated.current = true;
+      });
     }
   }, [content, editor]);
-
-  const { completion, complete, isLoading } = useCompletion({
-    id: "tompi-mvp",
-    api: "/api/complete",
-    onFinish: (_, completion) => {
-      editor?.commands.setTextSelection({
-        from: editor.state.selection.from - completion.length,
-        to: editor.state.selection.from,
-      });
-    },
-  });
-
-  const prev = useRef("");
-
-  useEffect(() => {
-    const diff = completion.slice(prev.current.length);
-    prev.current = completion;
-    if (diff) {
-      editor?.commands.insertContent(diff);
-    }
-  }, [completion, editor]);
 
   return (
     <Card
@@ -94,7 +79,7 @@ export default function TiptapEditor() {
           <Button
             onClick={() => {
               if (!editor) return;
-              complete(getPrevText(editor));
+              triggerCompletion();
             }}
           >
             Complete
