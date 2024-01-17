@@ -6,9 +6,7 @@ import { useDebouncedCallback } from "use-debounce";
 
 import { useBlock } from "@/lib/use-block";
 import { useLocalStorage } from "@mantine/hooks";
-import { Document } from "@tiptap/extension-document";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Text } from "@tiptap/extension-text";
 import { EditorContent, JSONContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 
