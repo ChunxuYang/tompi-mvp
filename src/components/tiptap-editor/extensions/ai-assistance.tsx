@@ -15,10 +15,25 @@ import { ChatBubbleIcon, MagicWandIcon } from "@radix-ui/react-icons";
 import { mergeAttributes } from "@tiptap/core";
 import {
   Editor,
+  findChildren,
   Node,
   NodeViewWrapper,
   ReactNodeViewRenderer,
 } from "@tiptap/react";
+
+declare module "@tiptap/core" {
+  interface Commands<ReturnType> {
+    aiAssistance: {
+      /**
+       * Comments will be added to the autocomplete.
+       */
+      // yourCommand: (someProp: any) => ReturnType,
+      triggerChat: () => ReturnType;
+      triggerComplete: () => ReturnType;
+      clearAIAssistance: () => ReturnType;
+    };
+  }
+}
 
 interface AIAssistanceComponentProps {
   editor: Editor;
@@ -108,13 +123,13 @@ const AiAssistanceNode = Node.create<AIAssistanceNodeOptions, {}>({
   inline: true,
   atom: true,
 
-  // addOptions() {
-  //   return {
-  //     complete: (text: string) => {
-  //       return Promise.resolve("text");
-  //     }
-  //   }
-  // },
+  addOptions() {
+    return {
+      complete: (text: string) => {
+        return Promise.resolve("text");
+      },
+    };
+  },
 
   parseHTML() {
     return [
@@ -143,6 +158,51 @@ const AiAssistanceNode = Node.create<AIAssistanceNodeOptions, {}>({
     };
   },
 
+  addCommands() {
+    return {
+      triggerChat:
+        () =>
+        ({ commands, editor }) => {
+          return commands.insertContent({
+            type: this.type.name,
+            attrs: { type: "chat" },
+          });
+        },
+      triggerComplete:
+        () =>
+        ({ commands }) => {
+          this.options
+            .complete(getPrevText(this.editor))
+            .then((text) => {
+              return commands.insertContent({
+                type: this.type.name,
+                attrs: { completionText: text, type: "complete" },
+              });
+            })
+            .catch((e) => console.error(e));
+
+          return true;
+        },
+
+      clearAIAssistance:
+        () =>
+        ({ commands }) => {
+          const node = findChildren(this.editor.state.doc, (node) => {
+            return node.type.name === this.type.name;
+          })[0];
+          if (!node) return false;
+          console.log("clearing", node);
+
+          commands.deleteRange({
+            from: node.pos,
+            to: node.pos + node.node.nodeSize,
+          });
+
+          return true;
+        },
+    };
+  },
+
   addKeyboardShortcuts() {
     return {
       "Mod-Shift-Enter": () => {
@@ -158,19 +218,22 @@ const AiAssistanceNode = Node.create<AIAssistanceNodeOptions, {}>({
           .run();
       },
       "Mod-Enter": () => {
-        this.options.complete(getPrevText(this.editor)).then((text) => {
-          return this.editor
-            .chain()
-            .insertContentAt(this.editor.state.selection.head, {
-              type: this.type.name,
-              attrs: { completionText: text, type: "complete" },
-              //   type: "complete",
-              //   completionText: text,
-              // },
-            })
-            .focus()
-            .run();
-        });
+        this.options
+          .complete(getPrevText(this.editor))
+          .then((text) => {
+            return this.editor
+              .chain()
+              .insertContentAt(this.editor.state.selection.head, {
+                type: this.type.name,
+                attrs: { completionText: text, type: "complete" },
+                //   type: "complete",
+                //   completionText: text,
+                // },
+              })
+              .focus()
+              .run();
+          })
+          .catch((e) => console.error(e));
 
         return true;
       },

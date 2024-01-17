@@ -4,8 +4,11 @@ import { useCompletion } from "ai/react";
 import { useEffect, useRef } from "react";
 import { useDebouncedCallback } from "use-debounce";
 
+import { useBlock } from "@/lib/use-block";
 import { useLocalStorage } from "@mantine/hooks";
+import { Document } from "@tiptap/extension-document";
 import Placeholder from "@tiptap/extension-placeholder";
+import { Text } from "@tiptap/extension-text";
 import { EditorContent, JSONContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 
@@ -13,6 +16,8 @@ import { Card } from "../ui/card";
 import AiAssistanceNode from "./extensions/ai-assistance";
 
 import type { Editor } from "@tiptap/core";
+// recursively remove all ai-assistance nodes
+
 export default function TiptapEditor() {
   const [content, setContent] = useLocalStorage<JSONContent | null>({
     key: "tompi-editor-content",
@@ -52,11 +57,20 @@ export default function TiptapEditor() {
 
       AiAssistanceNode.configure({
         complete: async (text: string) => {
-          return complete(text) as Promise<string>;
+          return (await complete(text)) as any;
         },
       }),
+
+      // Sentence,
+      // CustomParagraph,
+
+      // BlockDetection.configure({
+      //   threshold: 5000,
+      // }),
     ],
   });
+
+  useBlock(editor);
 
   useEffect(() => {
     if (!editor || hydrated.current) return;

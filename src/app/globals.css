@@ -78,3 +78,7 @@
 .tiptap p.empty-editor:first-child::before {
   @apply text-gray-400 content-[attr(data-placeholder)] float-left h-0 pointer-events-none;
 }
+
+.sentence {
+  @apply border border-gray-300;
+}
